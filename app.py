@@ -353,11 +353,11 @@ def pizza_karti(satir, degerler, turnuva, kullanici):
     return fig
 
 
-def sut_haritasi_karti(ms, ev_sahibi, deplasman, skor, turnuva, kullanici):
+def sut_haritasi_karti(ms, ev_sahibi, deplasman, skor, turnuva, kullanici, topla=None):
     pitch = Pitch(pitch_type="statsbomb", pitch_color=ARKA, line_color=SOLUK, linewidth=1.3, goal_type="box")
     fig, ax = pitch.draw(figsize=(9, 9))
     fig.set_facecolor(ARKA)
-    ax.set_position([0.04, 0.14, 0.92, 0.6])
+    ax.set_position([0.04, 0.27, 0.92, 0.5])
     for _, s in ms.iterrows():
         x, y = s["x"], s["y"]
         renk = VURGU
@@ -374,6 +374,18 @@ def sut_haritasi_karti(ms, ev_sahibi, deplasman, skor, turnuva, kullanici):
     fig.text(0.5, 0.875, f"xG  {xg_ev:.2f} - {xg_dep:.2f}", fontsize=15, color=SOLUK, ha="center")
     fig.text(0.06, 0.8, f"● {ev_sahibi}  →", fontsize=13, color=VURGU, fontweight="bold")
     fig.text(0.94, 0.8, f"←  {deplasman} ●", fontsize=13, color=KIRMIZI, fontweight="bold", ha="right")
+    # Alt istatistik şeridi
+    sut_ev = int((ms["team"] == ev_sahibi).sum())
+    sut_dep = int((ms["team"] == deplasman).sum())
+    satirlar = [("Şut", f"{sut_ev}", f"{sut_dep}"), ("xG", f"{xg_ev:.2f}", f"{xg_dep:.2f}")]
+    if topla is not None:
+        satirlar.append(("Topla oynama", f"%{topla[0]:.0f}", f"%{topla[1]:.0f}"))
+    for i, (ad, a, b) in enumerate(satirlar):
+        x = 0.2 + i * 0.3
+        fig.text(x, 0.215, ad.upper(), fontsize=10, color=SOLUK, ha="center", fontweight="bold")
+        fig.text(x - 0.022, 0.17, a, fontsize=20, color=VURGU, ha="right", fontweight="bold")
+        fig.text(x, 0.17, "-", fontsize=20, color=SOLUK, ha="center")
+        fig.text(x + 0.022, 0.17, b, fontsize=20, color=KIRMIZI, ha="left", fontweight="bold")
     fig.text(0.06, 0.06, f"{turnuva} · Nokta büyüklüğü = xG · top simgesi = gol\nVeri: StatsBomb", fontsize=10, color=SOLUK)
     fig.text(0.94, 0.07, kullanici, fontsize=15, color=VURGU, fontweight="bold", ha="right")
     return fig
@@ -744,7 +756,8 @@ elif sayfa == "🎯 Maç merkezi":
 
     sol, sag = st.columns([1, 1])
     with sol:
-        fig = sut_haritasi_karti(ms, ev_, dep, skor, turnuva_adi, kullanici)
+        fig = sut_haritasi_karti(ms, ev_, dep, skor, turnuva_adi, kullanici,
+                                  topla=(tme.loc[ev_, "topla_oynama"], tme.loc[dep, "topla_oynama"]))
         st.pyplot(fig)
         st.download_button("📸 Instagram kartını indir", png(fig), file_name="sut_haritasi.png",
                            mime="image/png", type="primary")
