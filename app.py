@@ -36,7 +36,7 @@ st.markdown(f"""
 .hero h1 {{font-size: 2.3rem; margin-bottom: 0; line-height: 1.15;}}
 .hero p {{color: {SOLUK}; margin-top: .3rem; font-size: 1rem;}}
 .hikaye {{background: {PANEL}; border: 1px solid {CIZGI}; border-left: 4px solid {VURGU};
-          border-radius: 12px; padding: 16px 18px; height: 100%; min-height: 150px;}}
+          border-radius: 12px; padding: 16px 18px; height: 100%; min-height: 175px;}}
 .hikaye .etiket {{color: {VURGU}; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;}}
 .hikaye .baslik {{color: {YAZI}; font-size: 1.05rem; font-weight: 600; margin: .4rem 0;}}
 .hikaye .detay {{color: {SOLUK}; font-size: .9rem;}}
@@ -275,13 +275,18 @@ def stil(fig, yukseklik=None):
     return fig
 
 
-def bar_ortalama(df, x, y, baslik, ortalama, dusuk_iyi=False, ondalik=2):
-    renk = [VURGU if ((v <= ortalama) if dusuk_iyi else (v >= ortalama)) else "#2A6B5A" for v in df[x]]
+def bar_ortalama(df, x, y, baslik, ortalama=None, dusuk_iyi=False, ondalik=2):
+    if ortalama is None:
+        renk = VURGU
+    else:
+        renk = [VURGU if ((v <= ortalama) if dusuk_iyi else (v >= ortalama)) else "#2A6B5A" for v in df[x]]
     fig = go.Figure(go.Bar(x=df[x], y=df[y], orientation="h", marker_color=renk,
-                           text=df[x].round(ondalik), textposition="outside", textfont=dict(color=YAZI, size=13)))
-    fig.add_vline(x=ortalama, line_dash="dash", line_color=SOLUK,
-                  annotation_text=f"Ortalama {ortalama:.{ondalik}f}", annotation_font_color=SOLUK,
-                  annotation_position="top")
+                           text=df[x].round(ondalik), textposition="outside", textfont=dict(color=YAZI, size=13),
+                           hovertemplate="%{y}<br><b>%{x:." + str(ondalik) + "f}</b><extra></extra>"))
+    if ortalama is not None:
+        fig.add_vline(x=ortalama, line_dash="dash", line_color=SOLUK,
+                      annotation_text=f"Ortalama {ortalama:.{ondalik}f}", annotation_font_color=SOLUK,
+                      annotation_position="top")
     fig.update_layout(title=baslik, yaxis=dict(autorange="reversed"))
     return stil(fig, max(420, 34 * len(df) + 100))
 
@@ -449,8 +454,8 @@ if sayfa == "🏠 Ana sayfa":
 
     st.write("")
     sol, sag = st.columns(2)
-    gk = oyuncular.sort_values(["gol", "xG"], ascending=False).head(10)
-    fig = bar_ortalama(gk, "gol", "etiket", "Gol krallığı", oyuncular.loc[oyuncular["gol"] > 0, "gol"].mean(), ondalik=0)
+    gk = oyuncular.sort_values(["gol", "asist", "dakika"], ascending=[False, False, True]).head(10)
+    fig = bar_ortalama(gk, "gol", "etiket", "Gol krallığı (eşitlikte asist, sonra az dakika)", ondalik=0)
     sol.plotly_chart(fig)
     xa = oyuncular.sort_values("xA", ascending=False).head(10)
     fig = bar_ortalama(xa, "xA", "etiket", "En çok pozisyon hazırlayanlar (xA)",
@@ -479,10 +484,14 @@ elif sayfa == "🏟️ Takımlar":
     st.subheader("Hücum mu, savunma mı?")
     st.markdown("<div class='alt'>Sağa gittikçe daha çok pozisyon üretiyor, yukarı çıktıkça daha az pozisyon veriyor.</div>",
                 unsafe_allow_html=True)
-    fig = px.scatter(takimlar, x="xG_mac", y="xGA_mac", text="team", hover_data={"mac": True},
-                     labels={"xG_mac": "Maç başı üretilen xG", "xGA_mac": "Maç başı verilen xG"})
-    fig.update_traces(marker=dict(size=13, color=VURGU, line=dict(color=ARKA, width=1)),
-                      textposition="top center", textfont=dict(size=11, color=YAZI))
+    ox, oy_ = takimlar["xG_mac"].mean(), takimlar["xGA_mac"].mean()
+    bolge_renk = [VURGU if (a >= ox and b <= oy_) else MAVI if b <= oy_ else SARI if a >= ox else KIRMIZI
+                  for a, b in zip(takimlar["xG_mac"], takimlar["xGA_mac"])]
+    fig = go.Figure(go.Scatter(x=takimlar["xG_mac"], y=takimlar["xGA_mac"], mode="markers+text", text=takimlar["team"],
+                               textposition="top center", textfont=dict(size=11, color=YAZI),
+                               marker=dict(size=13, color=bolge_renk, line=dict(color=ARKA, width=1)),
+                               hovertemplate="<b>%{text}</b><br>Üretilen xG: %{x:.2f}<br>Verilen xG: %{y:.2f}<extra></extra>"))
+    fig.update_layout(xaxis_title="Maç başı üretilen xG", yaxis_title="Maç başı verilen xG")
     fig.add_vline(x=takimlar["xG_mac"].mean(), line_dash="dot", line_color=SOLUK)
     fig.add_hline(y=takimlar["xGA_mac"].mean(), line_dash="dot", line_color=SOLUK)
     fig.update_yaxes(autorange="reversed")
@@ -733,7 +742,7 @@ elif sayfa == "🎯 Maç merkezi":
                       legend=dict(orientation="h", y=1.1))
     st.plotly_chart(stil(fig, 420))
 
-    sol, sag = st.columns([3, 2])
+    sol, sag = st.columns([1, 1])
     with sol:
         fig = sut_haritasi_karti(ms, ev_, dep, skor, turnuva_adi, kullanici)
         st.pyplot(fig)
@@ -744,10 +753,8 @@ elif sayfa == "🎯 Maç merkezi":
         mo = oy_mac[oy_mac["mac_id"] == r["match_id"]].copy()
         mo["ad"] = mo["player"].map(lambda p: takma.get(p, p))
         mo["katki"] = mo["xG"] + mo["xA"]
-        st.dataframe(mo.sort_values("katki", ascending=False)[["ad", "team", "dakika", "gol", "asist", "xG", "xA",
-                                                               "kilit_pas", "basarili_calim"]]
-                     .rename(columns={"ad": "Oyuncu", "team": "Takım", "dakika": "Dk", "gol": "Gol", "asist": "Asist",
-                                      "kilit_pas": "Kilit pas", "basarili_calim": "Çalım"})
+        st.dataframe(mo.sort_values("katki", ascending=False)[["ad", "team", "dakika", "gol", "asist", "xG", "xA"]]
+                     .rename(columns={"ad": "Oyuncu", "team": "Takım", "dakika": "Dk", "gol": "Gol", "asist": "Asist"})
                      .round(2), hide_index=True, height=560)
 
 plt.close("all")
